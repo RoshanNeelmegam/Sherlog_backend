@@ -80,7 +80,7 @@ class showTechExtended:
     def routing_logic(self):
         # Route loookup Logic. Parsing the whole route output as follows vrf_routing_table = (vrf-default: {10.0.0.0/24: {binary-eq: 00001010.00000000.00000000.00000000, prefix: 24}})
         self.routing_contents = self.command_searcher('show ip route') # has the ouput of the command show ip route vrf all detail
-        self.routing_contents += '\n------------- show ip route vrf all host -------------' # this line has been added for a regex match used when user inputs the last avaialble vrf on the device
+        self.routing_contents += '\nVRF: Table_Ends_Here'# this line has been added for a regex match used when user inputs the last avaialble vrf on the device
         self.vrf_routing_table = {}
         self.matched_routes = [] # holds the matched ip's in a specifif vrf for an ip inputted by the user
         parsing_routing_table(self.routing_contents, self.routes)
@@ -99,7 +99,7 @@ class showTechExtended:
             ptr = 0
             for lines in self.file_content.splitlines():
                 if ptr == 1:
-                    if re.search(fr'BGP routing table entry for .*', lines):
+                    if re.search(fr'BGP routing table entry for .*', lines) or re.search(r'------------- show.*', lines):
                         ptr = 0
                         if re.search(fr'BGP routing table entry for {route_type}.*{route}.*Route Distinguisher: {RD}.*', lines):
                             ptr = 1
@@ -117,8 +117,7 @@ class showTechExtended:
             match = re.findall(rf'.*RD: {RD}.*{route_type}.*{vni}.*{route}.*\n.*{next_hop}.*', self.file_content)
             for line in match:
                 output += line + '\n'
-            return output
-    
+            return output  
   
     def command_processor(self, commands):
         if commands.lower() == 'exit':
@@ -143,7 +142,7 @@ class showTechExtended:
                    content += line + '\n'
             return content.strip('\n')
         # is ? is pressed along with any previous string like show ip ?
-        elif re.match('(.*[\s]\?)', commands):
+        elif re.match(r'(.*[\s]\?)', commands):
             mod_commands = self.command_modifier(commands)
             temp_dict = {}
             try:
@@ -162,7 +161,7 @@ class showTechExtended:
                 return('wrong command')
             
         # is ? is pressed along with any previous string like show ip?
-        elif re.match('(.*[^\s]\?)', commands):
+        elif re.match(r'(.*[^\s]\?)', commands):
             temp_dict = {}
             for cmd in commands.split()[:-1]:
                 if cmd in ['bash', 'show']:
@@ -176,7 +175,8 @@ class showTechExtended:
                 if keys.startswith(commands.split()[-1].replace('?', '')):
                     content += keys + '\n'
             return content.strip('\n')   
-        elif re.search(r'show bgp evpn (route-type|vni|rd|next-hop|detail).+', commands ) and not 'summary' in commands and not 'instance' in commands:
+        commands = self.autocomplete(commands)
+        if re.search(r'show bgp evpn (route-type|vni|rd|next-hop|detail).+', commands ) and not 'summary' in commands and not 'instance' in commands:
             route_type = ''; route = ''; vni = ''; RD = ''; next_hop = ''; detail = False
             if ('detail' in commands and ('next-hop' in commands or 'vni' in commands)):
                 return('detail ouput not supported with keywords vni and nexthop')
@@ -210,21 +210,19 @@ class showTechExtended:
         elif ('show ip route vrf' in commands or 'show ip route' in commands):
             clist = commands.split(' ')
             clist_len = len(clist)
-            match clist_len:
-                case 3:
-                    print('yes')
+            if clist_len == 3:
                     # print(self.routing_contents)
                     return(routing_table_ouput(self.routing_contents, 'default'))
-                case 4:
+            elif clist_len == 4:
                     vrfc = 'default'
                     ip_add = clist[-1]
-                case 5:
+            elif clist_len == 5:
                     if clist[3] == 'vrf':
                         vrfc = clist[-1]
                         return(routing_table_ouput(self.routing_contents, vrfc))
                     else:
                         return('invalid input')
-                case 6:
+            elif clist_len == 6:
                     try:
                         vrfc = clist[-2]
                         ip_add = clist[-1]
@@ -232,9 +230,9 @@ class showTechExtended:
                             return('vrf does not exist')
                     except KeyError as e:
                             return('invalid input')
-                case _:
+            else:
                     return('invalid input')
-            if (len(clist) == 6 or len(clist) == 4):
+            if (clist_len == 6 or clist_len == 4):
                 route_ip = lookup(self.vrf_routing_table, ip_add, vrfc, self.matched_routes)
                 if route_ip == 'Invalid ip address':
                     return 'Invalid ip address'
@@ -244,38 +242,55 @@ class showTechExtended:
         else:
             return(self.command_searcher(self.sed(commands)))
 
-
     def complete(self, text, state):
         # autocompleter
         ori_command = readline.get_line_buffer().lower()
-        mod_ori_command = self.command_modifier(self.sed(ori_command))
+        # mod_ori_command = self.command_modifier(self.sed(ori_command))
         # mod_ori_command[0] = self.sed(mod_ori_command[0]) 
         cmd_first_key_dict = {
             'show': self.cmd_dictionary['show'],
         }
-        if len(mod_ori_command) <= 1 and not re.search('\s$', ori_command): # if no commands entered yet, show all options
+        splitted_command = ori_command.split()
+        if len(splitted_command) <= 1 and not re.search(r'\s$', ori_command): # if no commands entered yet, show all options
             options = ['show'] 
-        elif mod_ori_command[0] in ['show']: # narrow down options based on 'show' or 'bash' command
-            if len(mod_ori_command) == 2 and not re.search('\s$', ori_command):
-                options = [ x for x in cmd_first_key_dict[mod_ori_command[0]] if x.startswith(mod_ori_command[1]) ]
-            elif len(mod_ori_command) == 3 and not re.search('\s$', ori_command):
-                options = [x for x in cmd_first_key_dict[mod_ori_command[0]][mod_ori_command[1]] if x.startswith(mod_ori_command[2])]
-            elif len(mod_ori_command) == 4 and not re.search('\s$', ori_command):
-                options = [x for x in cmd_first_key_dict[mod_ori_command[0]][mod_ori_command[1]][mod_ori_command[2]] if x.startswith(mod_ori_command[3])]
-            elif len(mod_ori_command) == 5 and mod_ori_command[3] == 'route-type' and not re.search('\s$', ori_command):
-                options = ['auto-discovery', 'ethernet-segment', 'imet', 'ip-prefix', 'mac-ip', 'smet', 'join-sync', 'leave-sync', 'spmsi']
-            elif len(mod_ori_command) == 5 and not re.search('\s$', ori_command):
-                options = [x for x in cmd_first_key_dict[mod_ori_command[0]][mod_ori_command[1]][mod_ori_command[2]][mod_ori_command[3]] if x.startswith(mod_ori_command[4])]
-            elif len(mod_ori_command) == 6 and not re.search('\s$', ori_command):
-                options = [x for x in cmd_first_key_dict[mod_ori_command[0]][mod_ori_command[1]][mod_ori_command[2]][mod_ori_command[3]][mod_ori_command[4]] if x.startswith(mod_ori_command[5])]
-            elif len(mod_ori_command) == 7 and mod_ori_command[3] == 'route-type' and 'next-hop' not in mod_ori_command and 'detail' not in mod_ori_command and not re.search('\s$', ori_command):
-                options = [x for x in cmd_first_key_dict[mod_ori_command[0]][mod_ori_command[1]][mod_ori_command[2]][mod_ori_command[3]][mod_ori_command[4]][mod_ori_command[5]] if x.startswith(mod_ori_command[6])]
+        else:
+            split_ori_command = re.findall(r'(.+)\s(\w+)?$', ori_command)
+            mod_ori_command = self.autocomplete(split_ori_command[0][0]).split()
+            mod_ori_command.append(split_ori_command[0][1])
+            if len(mod_ori_command) <= 1 and not re.search(r'\s$', ori_command): # if no commands entered yet, show all options
+                options = ['show'] 
+            elif mod_ori_command[0] in ['show']: # narrow down options based on 'show' or 'bash' command
+                if len(mod_ori_command) == 2 and not re.search(r'\s$', ori_command):
+                    options = [ x for x in cmd_first_key_dict[mod_ori_command[0]] if x.startswith(mod_ori_command[1]) ]
+                elif len(mod_ori_command) == 3 and not re.search(r'\s$', ori_command):
+                    options = [x for x in cmd_first_key_dict[mod_ori_command[0]][mod_ori_command[1]] if x.startswith(mod_ori_command[2])]
+                elif len(mod_ori_command) == 4 and not re.search(r'\s$', ori_command):
+                    options = [x for x in cmd_first_key_dict[mod_ori_command[0]][mod_ori_command[1]][mod_ori_command[2]] if x.startswith(mod_ori_command[3])]
+                elif len(mod_ori_command) == 5 and mod_ori_command[3] == 'route-type' and not re.search(r'\s$', ori_command):
+                    options = ['auto-discovery', 'ethernet-segment', 'imet', 'ip-prefix', 'mac-ip', 'smet', 'join-sync', 'leave-sync', 'spmsi']
+                elif len(mod_ori_command) == 5 and not re.search(r'\s$', ori_command):
+                    options = [x for x in cmd_first_key_dict[mod_ori_command[0]][mod_ori_command[1]][mod_ori_command[2]][mod_ori_command[3]] if x.startswith(mod_ori_command[4])]
+                elif len(mod_ori_command) == 6 and not re.search(r'\s$', ori_command):
+                    options = [x for x in cmd_first_key_dict[mod_ori_command[0]][mod_ori_command[1]][mod_ori_command[2]][mod_ori_command[3]][mod_ori_command[4]] if x.startswith(mod_ori_command[5])]
+                elif len(mod_ori_command) == 7 and mod_ori_command[3] == 'route-type' and 'next-hop' not in mod_ori_command and 'detail' not in mod_ori_command and not re.search(r'\s$', ori_command):
+                    options = [x for x in cmd_first_key_dict[mod_ori_command[0]][mod_ori_command[1]][mod_ori_command[2]][mod_ori_command[3]][mod_ori_command[4]][mod_ori_command[5]] if x.startswith(mod_ori_command[6])]
             else:
                 options = []
-
-        else: # no options for other commands
-            options = []
         results = [x for x in options if x.startswith(text)] + [None]
         return results[state]
         
-
+    def autocomplete(self, command):
+        actual_cmd = []
+        cmdlist = command.split(' ')
+        to_search = self.cmd_dictionary
+        for cmd in cmdlist:
+            for keys in to_search:
+                match = re.search(rf'^{cmd}', keys, flags=re.IGNORECASE)
+                if match:
+                    actual_cmd.append(keys)
+                    to_search = to_search[keys]
+                    break
+            else:
+                actual_cmd.append(cmd)
+        # print(f"actual command: {actual_cmd}")
+        return ' '.join(actual_cmd)

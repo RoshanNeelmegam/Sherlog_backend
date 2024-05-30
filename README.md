@@ -2,31 +2,38 @@
 
 - [Switch Mode](#switch-mode)
   - [Overview](#overview)
-    - [Current Features](#current-features)
+    - [Features](#features)
   - [Requirements](#requirements)
+  - [**Installation**](#installation)
   - [Usage](#usage)
-    - [Snapshots](#snapshots) 
-  - [**Updates**](#updates) (check here for added new updates)
-  - [Feature Requests \& BUGs](#feature-requests--bugs)
+    - [ShowTech](#showtech)
+    - [HistoryTech](#historytech)
+    - [ShowTechExtended](#showtechextended) 
+  - [**Updates**](#updates) {check here for added new updates}
+  - [**Feature Requests and Bugs**](#feature-requests-and-bugs)
 
 ## Overview
 
-Script that takes in a show tech file and creates an interface similar to the switch CLI for better troubleshooting.
+SwitchMode is a script that takes in a show tech file and creates an interface similar to the switch CLI for enhanced and faster troubleshooting.
 
-### Current Features
+### Features
 
-- Switch CLI like user interface
-- IPv4 Route lookup
+- Switch CLI like User Interface
+- IPv4 Route Lookup
+- Linux Pipelining
+- Custom Commands Support
 
 ## Requirements
 
 - [Git](https://git-scm.com/download/mac)
   - `brew install git`
 - [Python3](https://www.python.org/downloads/macos/)
-  - Python3 should be installed by default on MAC
+  - Python3 should be installed by default on MAC (atleast 3.10 is required)
   - `$(which python3) --version`
 
-## Usage
+## Installation
+
+Installing SwitchMode and to get it running is pretty simple and straighforward.
 
 Download this repository, using zip/tar or git clone.
 
@@ -38,7 +45,7 @@ git clone https://gitlab.aristanetworks.com/roshan/switch_mode.git
 cd switch_mode
 ```
 
-Once in the repository, we can use the following commands to add the alias to invoke the script.
+Once in the repository, we can use the following commands to add the alias to invoke the script. 
 
 ```shell
 echo "alias sw='python3 $PWD/Main.py \$1'" >> ~/.zshrc
@@ -46,13 +53,19 @@ echo "alias ew='python3 $PWD/Evpn.py \$1'" >> ~/.zshrc
 echo "alias hdiff='python3 $PWD/hdiff.py \$1 \$2'" >> ~/.zshrc 
 source ~/.zshrc
 ```
+<b>Note: we could use any custom alias in here. Just replace the keywords 'sw'/'ew'/'hdiff' with the keywords of your choice to invoke the script.<b>
+
+## Usage
 
 To run the script, type the following command.
 
-`sw <file-name>`
-`ew <file-name>`
+`sw <file-name>` <- For show tech files
 
-### Snapshots
+`ew <file-name>` <- For show tech extended files 
+
+`hdiff <directory path containing the history techs> <command to check>` <- To run a command across history tech support files
+
+## ShowTech
 
 ```shell
 Eliot:~/Desktop/Logs$ sw showtech.log
@@ -85,8 +98,6 @@ Vlan    Mac Address       Type        Ports      Moves   Last Move
 <truncated>
 ```
 
-- Please do note that as of now the switch mode requires the user to type the full commmand.
-
 - The switch mode also enables linux pipelining.
 
 ```shell
@@ -101,7 +112,9 @@ Hardware MAC address:  2cdd.e97e.e73d
 System MAC address:    2cdd.e97e.e73d
 
 Software image version: 4.24.4M
-Switch#
+```
+```
+Switch# show version detail | cat > ~/Desktop/myloganalyis
 ```
 
 - In case if you are unsure of the command, you could use "?" and type enter.
@@ -121,10 +134,6 @@ Switch# show interfaces ?
 status
 switchport
 phy
-counters
-transceiver
-mac
-error-correction
 ```
 
 ```shell
@@ -136,15 +145,7 @@ show interfaces status errdisabled
 show interfaces switchport
 show interfaces phy detail
 show interfaces counters queue | nz
-show interfaces counters queue detail | nz
-show interfaces counters discards | nz
-show interfaces transceiver detail
-show interfaces counters errors
-show interfaces mac detail
-show interfaces error-correction
-show interfaces counters rates | nz
-show interfaces switchport vlan mapping
-show interfaces transceiver tuning detail
+<truncated>
 ```
 - Ip route output supported for per vrf.
 ```shell
@@ -212,12 +213,14 @@ VRF: management
  C        10.53.2.0/24 is directly connected, Management1 management
  ```
 
+## HistoryTech
+
 - History Tech-supports diff output can now be generated as follows (make sure there's no space in the filename or file path since it's behaviour is different on different os versions).
 
 `hdiff <directory of History-tech> <command in quotes>`
 
 ```shell
-~/Desktop/Logs/Mingsoong❯ hdiff schedule/tech-support/ 'show clock |head -n 2'                                                                                            
+~/Desktop/Logs/Mingsoong❯ hdiff schedule/tech-support/ 'show clock | head -n 2'                                                                                            
 
 uk-wat-eci-npmgmtsw02_tech-support_2023-12-02.1904.log.gz
 ------------- show clock -------------
@@ -232,16 +235,89 @@ Sat Dec  2 18:04:32 2023
 <truncated>
  ```
 
+```
+~/Desktop/Logs/Barclays/mnt/flash/schedule/tech-support❯ hdiff ./ "show ip int br | grep -v 1500"                                 
+
+SMU-7280-ARISTA-2_tech-support_2024-02-02.0450.log.gz
+Interface          IP Address              Status       Protocol             MTU
+------------------ ----------------------- ------------ -------------------- -----------
+Loopback1          10.1.255.1/32           up           up                   65535
+Vlan4092           10.100.102.102/30       up           up                   9214
+Vlan4093           10.100.101.102/30       up           up                   9214
+
+
+********************
+
+SMU-7280-ARISTA-2_tech-support_2024-02-02.0550.log.gz
+Interface          IP Address              Status       Protocol             MTU
+------------------ ----------------------- ------------ -------------------- -----------
+Loopback1          10.1.255.1/32           up           up                   65535
+Vlan4092           10.100.102.102/30       up           up                   9214
+Vlan4093           10.100.101.102/30       up           up                   9214
+<truncated>
+```
+
+## ShowTechExtended 
+
+Switch mode also supports EVPN parsing.
+
+`ew <filename>`
+
+```Test/tmp/support-bundle-cmds
+❯ ~/Desktop/Bofa/tmp/support-bundle-cmds$ ew show-tech-support-extended-evpn
+switch:
+```
+- Question mark supported as with show tech.
+
+```
+switch: show bgp ??
+show bgp evpn
+show bgp evpn detail
+show bgp evpn instance
+show bgp evpn next-hop <next-hop>
+show bgp evpn rd <rd> detail
+show bgp evpn rd <rd> vni <vni>
+show bgp evpn rd <rd> vni <vni> next-hop <next-hop>
+show bgp evpn route-type <route-type> <route> detail
+show bgp evpn route-type <route-type> <route> next-hop <next-hop> rd <rd> vni <vni>
+show bgp evpn route-type <route-type> <route> next-hop <next-hop> vni <vni> rd <rd>
+show bgp evpn route-type <route-type> <route> rd <rd> detail
+<truncated>
+```
+- Fine tune the output as per your need. Linux pipelining is supported as well here.
+
+```
+switch: show bgp evpn route-type mac-ip b47a.f168.7109
+ * >      RD: 10.184.0.109:633 mac-ip b47a.f168.7109
+                                 10.184.0.109          -       100     0       65203.1006 i
+ * >      RD: 10.184.0.109:633 mac-ip b47a.f168.7109 10.184.210.215
+                                 10.184.0.109          -       100     0       65203.1006 i
+ * >      RD: 10.184.0.110:633 mac-ip b47a.f168.7109
+                                 10.184.0.110         -       100     0       65203.1006 i
+ * >      RD: 10.184.0.110:633 mac-ip b47a.f168.7109 10.184.210.215
+                                 10.184.0.110        -       100     0       65203.1006 i
+```
+
+```
+switch: show bgp evpn route-type mac-ip b47a.f168.7109 rd 10.184.0.109:633
+ * >      RD: 10.184.0.109:633 mac-ip b47a.f168.7109
+                                 10.184.0.109          -       100     0       65203.1006 i
+ * >      RD: 10.184.0.109:633 mac-ip b47a.f168.7109 10.184.210.215
+                                 10.184.0.109          -       100     0       65203.1006 i
+```
+
+```
+switch: show bgp evpn route-type mac-ip b47a.f168.7109 rd 10.184.0.109:633 | wc - l
+
+   4
+```
 
 ## Updates
+- Exceptions are now notified to a centralized server.
+- Better error handling.
+- Fine tuned question mark specific commands.
+- Command autocomplete is supported.
 
-- Switch mode now supports command shortcuts partially.
-- Routing table ouput for per vrf is supported (show ip route vrf x).
-- Running config for per interface is supported (sh run int x).
-- Per interface output for mac/phy detail is supported.
-- Per interface output for 'show interfaces' and 'show interfaces status' is supported.
-- History tech diff now supported.
-
-## Feature Requests & BUGs
+## Feature Requests and Bugs 
 
 Please use [this document](https://docs.google.com/document/d/1Q3eoH3ynrmpqYQKKeLTei0jDfon1XjQioH8IpdOBtZU/edit?usp=sharing) for filing any BUGs or feautre Requests (RFEs).

@@ -37,35 +37,13 @@ class ShowTech:
             print('"show lldp neighbors" is not accurate. Please use "show lldp neighbors detail" for proper info.')
             pass
     
-    # modifies certain commands in the show-tech which are not user friendly
-    def show_tech_commands_modifier(self):
-        # function to modify the commandds in the show tech for easier parsing
-        self.file_content = re.sub(r'------------- show interface ', '------------- show interfaces ', self.file_content, flags=re.MULTILINE)
-        self.file_content = re.sub(r'------------- show ip interface ', '------------- show ip interfaces ', self.file_content, flags=re.MULTILINE)
-        self.file_content = re.sub(r'------------- bash dmesg.*', '------------- bash dmesg -------------', self.file_content, flags=re.MULTILINE)
-        self.file_content = re.sub(r'------------- show ip route vrf all detail -------------', '------------- show ip route vrf all-detail -------------', self.file_content, flags=re.MULTILINE)
-        self.file_content = re.sub(r'------------- show ip route vrf all host -------------', '------------- show ip route vrf all-host -------------', self.file_content, flags=re.MULTILINE)
-        self.file_content = re.sub(r'------------- show ip route vrf all summary -------------', '------------- show ip route vrf all-summary -------------', self.file_content, flags=re.MULTILINE)
-        self.file_content = re.sub(r'------------- show interfaces counters discards.*', '------------- show interfaces counters discards -------------', self.file_content, flags=re.MULTILINE)
-        self.file_content = re.sub('queue \| nz', 'queue', self.file_content, flags=re.MULTILINE)
-        self.file_content = re.sub(r'------------- show ip bgp summary vrf all -------------', '------------- show ip bgp summary -------------', self.file_content, flags=re.MULTILINE)
-        self.file_content = re.sub(r'------------- show ip bgp neighbor vrf all -------------', '------------- show ip bgp neighbor -------------', self.file_content, flags=re.MULTILINE)
-        self.file_content = re.sub(r'------------- show interfaces mac detail -------------', '------------- show interfaces mac-detail -------------', self.file_content, flags=re.MULTILINE)
-        self.file_content = re.sub(r'------------- show interfaces phy detail -------------', '------------- show interfaces phy-detail -------------', self.file_content, flags=re.MULTILINE)
-        self.file_content = re.sub(r'------------- show interfaces all -------------', '------------- show interfaces -------------', self.file_content, flags=re.MULTILINE) 
-        self.file_content = re.sub(r'------------- show interfaces all mac detail -------------', '------------- show interfaces mac-detail -------------', self.file_content, flags=re.MULTILINE)
-        self.file_content = re.sub(r'------------- show interfaces all phy detail -------------', '------------- show interfaces phy-detail -------------', self.file_content, flags=re.MULTILINE)
-        self.file_content = re.sub(r'------------- show interfaces all status -------------', '------------- show interfaces status -------------', self.file_content, flags=re.MULTILINE)
-        self.file_content = re.sub('\| nz -------------', '-------------', self.file_content, flags=re.MULTILINE)
-        self.file_content = re.sub(r'\bcounter\b', 'counters', self.file_content, flags=re.MULTILINE)
-        self.file_content = re.sub(r'\bcount\b', 'counters', self.file_content, flags=re.MULTILINE)
-        self.file_content = re.sub(r'vxlan 1-\$', 'vxlan', self.file_content, flags=re.MULTILINE)
-        self.file_content = re.sub(r'\bneighbor\b', 'neighbors', self.file_content, flags=re.MULTILINE)
-
     # gathers all commands and stores in a list, which is used later in autocomplete and when user presses ?
     def gather_commands(self):
         self.allCommands = re.findall('------------- (show.*|bash.*) -------------', self.file_content)
-        for cmd in self.allCommands:
+        self.newallCommands = [item + ' <cr>' for item in self.allCommands if item.startswith('show')]
+        self.newallCommands += ['show running-config section <section to check for>', 'show running-config interfaces <ethernet or port-channel or svi> ', 'show ip interface brief <cr>', 'show interfaces ethernet <ethernet-no> status <cr>', 'show interfaces port-channel <port-channel no> status <cr>', 'show interfaces management <management no> status <cr>', 'show interfaces ethernet <ethernet-no> mac-detail <cr>', 'show interfaces ethernet <ethernet-no> phy-detail <cr>', 'show interfaces port-channel <port-channel no> <cr>', 'show interfaces vlan <vlan no> <cr>', 'show interfaces ethernet <ethernet no>' ]
+        self.newallCommands += [item for item in self.allCommands if item.startswith('bash')]
+        for cmd in self.newallCommands:
             parts = cmd.split() # splitting the commands => parts = ['show version detail', 'show interfaces status', ..]
             temp_dict = self.cmd_dictionary # using a temporary dictionay used later in the iteration. For each command iteration, temp_dict now points to the original cmd_dictionary
             for part in parts: # splitting the commmands itself => ['show' 'version', 'detail'] to check if element exists in dictionary. If not populates it
@@ -73,11 +51,15 @@ class ShowTech:
                     temp_dict[part] = {}
                 temp_dict = temp_dict[part] # now temp dict point to the empty dictionary of the key {part}. Eg cmd_dictionry = {show: {} <-- temp_dict}
         # some showtechs have a differnt command for show the interfaces status. Depending on what is present on the show tech, we will call that
-        if 'show interfaces all status' in self.allCommands:
-            mapCommand['show interfaces status']['parent_command'] = 'show interfaces all status'
-        else:
-            mapCommand['show interfaces status']['parent_command'] = 'show interfaces status'
+        self.nz_commands = [item.replace(' | nz', '') for item in self.allCommands if '| nz' in item]
+        mod_cmds = [re.sub(r'interfaces all', 'interfaces', item) for item in self.newallCommands]
+        self.newallCommands = mod_cmds
 
+    def show_tech_commands_modifier(self):
+        # function to modify the commandds in the show tech for easier parsing
+        self.file_content = re.sub(r'------------- show interface ', '------------- show interfaces ', self.file_content, flags=re.MULTILINE)
+        self.file_content = re.sub(r'------------- show interfaces vxlan .* -------------', '------------- show interfaces vxlan1 -------------', self.file_content, flags=re.MULTILINE)
+        self.file_content = re.sub(r'------------- show running-config sanitized -------------', '------------- show running-config -------------', self.file_content, flags=re.MULTILINE)
 
     def command_searcher(self, command):
         pattern = fr'------------- {command} -------------'
@@ -93,55 +75,21 @@ class ShowTech:
                 output = self.file_content[first_match.start():]
                 return output
         else:
-            return ('wrong command')
+            return ('wrong or incomplete command')
  
     # gets the hostname and gets it assigend to a variable
     def get_hostname(self):
-        for line in self.command_searcher('show running-config sanitized').splitlines():
+        for line in self.command_searcher('show running-config').splitlines():
             searches = re.search(r'^hostname\s+(.+)$', line)
             if searches:
                 self.hostname = searches.group(1)
                 break
 
-    # to complete the commands entered by the user
-    def sed(self, command):
-        # sanitizing the output
-        sanitized_command = re.sub(r"\b^sh(o(w?)?)?\b", "show", command)
-        sanitized_command = re.sub(r"\b^ba(s(h?)?)?\b", "bash", sanitized_command)
-        sanitized_command = re.sub(r"\bver(s(i(o(n?)?)?)?)?\b", "version", sanitized_command)
-        sanitized_command = re.sub(r"\bint(e(r(f(a(c(e(s?)?)?)?)?)?)?)?\b", "interfaces", sanitized_command)
-        sanitized_command = re.sub(r"\badd(r(e(s(s?)?)?)?)?$\b", "address-table", sanitized_command)
-        sanitized_command = re.sub(r"\bvx(l(a(n(1?)?)?)?)?1?\b", "vxlan", sanitized_command)
-        sanitized_command = re.sub(r"\brun(n(i(n(g(-(c(o(n(f(i(g?)?)?)?)?)?)?)?)?)?)?)?\b", "running-config sanitized", sanitized_command)
-        sanitized_command = re.sub(r"\b st(a(t(u(s?)?)?)?)?\b", " status", sanitized_command)
-        sanitized_command = re.sub(r"\berr(d(i(s(a(b(l(e(d?)?)?)?)?)?)?)?)?\b", "errdisabled", sanitized_command)
-        sanitized_command = re.sub(r"\bbr(i(e(f?)?)?)?\b", "brief", sanitized_command)
-        sanitized_command = re.sub(r"\bshow log(g(i(n(g?)?)?)?)?\b", "show logging", sanitized_command)
-        sanitized_command = re.sub(r"\bsec(t(i(o(n?)?)?)?)?\b", "section", sanitized_command)
-        sanitized_command = re.sub(r"\bst(a(t(u(s?)?)?)?)?\b", "status", sanitized_command)
-        sanitized_command = re.sub(r"\bnei(g(h(b(o(r(s?)?)?)?)?)?)?\b", "neighbors", sanitized_command)
-        sanitized_command = re.sub(r"\btrans(c(e(i(v(e(r?)?)?)?)?)?)?\b", "transceiver", sanitized_command)
-        sanitized_command = re.sub(r"\bet(h(e(r(n(e(t?)?)?)?)?)?)?", "ethernet", sanitized_command)
-        sanitized_command = re.sub(r"\bvl(a(n?)?)?", "vlan", sanitized_command)
-        # sanitized_command = re.sub(r"\bpo(r(t(-(c(h(a(n(n(e(l?)?)?)?)?)?)?)?)?)?)?", "port-channel", sanitized_command)
-        sanitized_command = re.sub(r"\binterfaces lo(o(p(b(a(c(k?)?)?)?)?)?)?", "interfaces loopback", sanitized_command)
-        sanitized_command = re.sub(r"show running-config sanitized interfaces vx(l(a(n(1?)?)?)?)?", "show running-config sanitized interfaces vxlan1", sanitized_command)
-        sanitized_command = re.sub(r"show running-config sanitized interfaces vl(a(n?)?)?", "show running-config sanitized interfaces vlan", sanitized_command)
-        sanitized_command = re.sub(r"show running-config sanitized interfaces ma(n(a(g(e(m(e(n(t?)?)?)?)?)?)?)?)?", "show running-config sanitized interfaces management", sanitized_command)
-        if 'show interfaces' in sanitized_command and (sanitized_command.split()[-1] == 'status' or sanitized_command.split()[-1] == 'switchport'):
-            sanitized_command = re.sub(r"show interfaces et(h(e(r(n(e(t?)?)?)?)?)?)?", "show interfaces Et", sanitized_command.lower())
-            sanitized_command = re.sub(r"show interfaces po(r(t(-(c(h(a(n(n(e(l?)?)?)?)?)?)?)?)?)?)?", "show interfaces Po", sanitized_command.lower())
-            sanitized_command = re.sub(r"show interfaces vx(l(a(n(1?)?)?)?)?", "show interfaces Vx1", sanitized_command.lower())
-        elif 'show interfaces' in sanitized_command and (sanitized_command.split()[-1] != 'status' or sanitized_command.split()[-1] != 'switchport'):
-            sanitized_command = re.sub(r"show interfaces et(h(e(r(n(e(t?)?)?)?)?)?)?", "show interfaces Ethernet", sanitized_command.lower())
-            sanitized_command = re.sub(r"show interfaces po(r(t(-(c(h(a(n(n(e(l?)?)?)?)?)?)?)?)?)?)?", "show interfaces Port-channel", sanitized_command.lower())
-        return sanitized_command
-
     # parses the routing table and returns a dictionary of vrf routes
     def routing_logic(self):
         # Route loookup Logic. Parsing the whole route output as follows vrf_routing_table = (vrf-default: {10.0.0.0/24: {binary-eq: 00001010.00000000.00000000.00000000, prefix: 24}})
-        self.routing_contents = self.command_searcher('show ip route vrf all-detail') # has the ouput of the command show ip route vrf all detail
-        self.routing_contents += '\n------------- show ip route vrf all host -------------' # this line has been added for a regex match used when user inputs the last avaialble vrf on the device
+        self.routing_contents = self.command_searcher('show ip route vrf all detail') # has the ouput of the command show ip route vrf all detail
+        self.routing_contents += '\nVRF: Table_Ends_Here' # this line has been added for a regex match used when user inputs the last avaialble vrf on the device
         self.vrf_routing_table = {}
         self.matched_routes = [] # holds the matched ip's in a specifif vrf for an ip inputted by the user
         parsing_routing_table(self.routing_contents, self.routes)
@@ -150,20 +98,24 @@ class ShowTech:
 
     # checks the user entered command against the condition and returns the output
     def command_processor(self, command):
-        if command == 'exit':
-            sys.exit()
 
-        elif command == '?':
+        if command == '?':
             content = '\n'
             for keys in self.cmd_dictionary:
                 content += keys + '\n'
             return content
 
         # for viewing all show/bash commands
+        # optimized this part
         elif '??' in command:
+            cmdlist = command.split()
+            if not len(cmdlist) == 1:
+                command = self.autocomplete(' '.join(cmdlist[:-1]))
+                command += " " + cmdlist[-1]
             command = command.replace('??', '')
+            print(f"?? for command {command}")
             question_pattern = re.compile(fr'.*{command}.*')
-            question_matches = question_pattern.findall('\n'.join(self.allCommands))
+            question_matches = question_pattern.findall('\n'.join(self.newallCommands))
             content = ''
             question_matches = sorted(question_matches)
             for line in question_matches:
@@ -172,10 +124,13 @@ class ShowTech:
             return content.strip('\n')
 
         # is ? is pressed along with any previous string like show ip ?
-        elif re.match('(.*[\s]\?)', command):
+        elif re.match(r'(.*[\s]\?)', command):
             temp_dict = {}
             try:
-                for cmd in command.split()[:-1]:
+                cmdlist= command.split()
+                command_gen = self.autocomplete(' '.join(cmdlist[:-1]))
+                print(f"? for command {command_gen}")
+                for cmd in command_gen.split():
                     if cmd in ['bash', 'show']:
                         temp_dict = self.cmd_dictionary[cmd]
                     else: # searching the inner dicitonary for the keys. For eg if user does show ip ?, temp_dict will be eventually {interfaces: {}, route {}, ..}
@@ -190,28 +145,36 @@ class ShowTech:
                 return('wrong command')
 
         # is ? is pressed along with any previous string like show ip?
-        elif re.match('(.*[^\s]\?)', command):
-            temp_dict = {}
-            for cmd in command.split()[:-1]:
-                if cmd in ['bash', 'show']:
-                    temp_dict = self.cmd_dictionary[cmd]
-                else:
-                    temp_dict1 = temp_dict.copy()
-                    temp_dict = {}
-                    temp_dict = temp_dict1[cmd.replace('?', '')].copy() # we are not considering the last element in the command meaning in show ip?, we only are concerned with keys starting with ip in the dict['show'] returned dictionary
+        # optimized this part
+        elif re.match(r'(.*[^\s]\?)', command):
             content = ''
+            temp_dict = self.cmd_dictionary
+            cmdlist= command.split()
+            command_gen = self.autocomplete(' '.join(cmdlist[:-1]))
+            if len(cmdlist) == 1:
+                pass
+            else: 
+                for cmd in command_gen.split():
+                    if cmd in ['bash', 'show']:
+                        temp_dict = self.cmd_dictionary[cmd]
+                    else:
+                        temp_dict1 = temp_dict.copy()
+                        temp_dict = {}
+                        temp_dict = temp_dict1[cmd].copy() # we are not considering the last element in the command meaning in show ip?, we only are concerned with keys starting with ip in the dict['show'] returned dictionary
             for keys in temp_dict:
-                if keys.startswith(command.split()[-1].replace('?', '')):
+                if keys.startswith(cmdlist[-1].replace('?', '')):
                     content += keys + '\n'
             return content.strip('\n')   
             
+        command = self.autocomplete(command)
+        # Handle custom dynamic commands
         command_handlers = {
             r"show ip route( vrf (\w+))?( ([\d.]+))?": handle_ip_route,  # Combine patterns for efficiency 
             r"show logging (\d+)": handle_show_logging,
-            r"show running-config sanitized section": shrunsec,
-            r"show running-config sanitized interfaces": shrunint,
-            r"show interfaces (Et|Po|Vx).* (status|switchport|mac-detail|phy-detail)": handle_show_interfaces_options,
-            r"show interfaces (ethernet|port-channel|vlan)": handle_individual_interfaces,
+            r"show running-config section": shrunsec,
+            r"show running-config interfaces": shrunint,
+            r"show interfaces(\s)((Et|Po|Vx|Ma)(.*)\s)?(status|switchport|mac-detail|phy-detail)": handle_show_interfaces_options, # more info on regex here: https://regex101.com/r/rPk0ov/1
+            r"show interfaces(\s)?((et|po|vl|ma)(.*[0-9]))?$": handle_individual_interfaces, # more info on regex here: https://regex101.com/r/LAY345/1
             r"show vlan \d+": handle_per_vlan,
         }
 
@@ -220,55 +183,74 @@ class ShowTech:
             if match:
                 return handler(self, command=command, match=match) 
 
-        # Handle commands mapped in mapCommand
+        # Handle static commands mapped in mapCommand 
         if command in mapCommand:
             return handle_mapped_command(self, command)
-
+        
+        # Handle nz commands
+        for cmd in self.nz_commands:
+            if cmd == command:
+               print("Showing only non-zero values for this command")
+               command = fr"{command} \| nz"
+               return self.command_searcher(command)
+        
         # Handle unmatched commands
         return self.command_searcher(command)
-
 
     # used in autocomplete 
     def complete(self, text, state):
         # autocompleter
         ori_command = readline.get_line_buffer().lower()
-        mod_ori_command = ori_command.split() # get the previously entered commands
         cmd_first_key_dict = {
             'show': self.cmd_dictionary['show'],
             'bash': self.cmd_dictionary['bash']
         }
-        mod_ori_command[0] = self.sed(mod_ori_command[0]) 
-        if len(mod_ori_command) <= 1 and not re.search('\s$', ori_command): # if no commands entered yet, show all options
+        splitted_command = ori_command.split()
+        if len(splitted_command) <= 1 and not re.search(r'\s$', ori_command): # if no commands entered yet, show all options
             options = ['show', 'bash'] 
-        elif mod_ori_command[0] in ['show', 'bash']: # narrow down options based on 'show' or 'bash' command
-            if len(mod_ori_command) == 2 and not re.search('\s$', ori_command):
-                options = [x for x in cmd_first_key_dict[mod_ori_command[0]] if x.startswith(mod_ori_command[1])]
-            elif len(mod_ori_command) == 3 and not re.search('\s$', ori_command):
-                options = [x for x in cmd_first_key_dict[mod_ori_command[0]][mod_ori_command[1]] if x.startswith(mod_ori_command[2])]
-            # next condition useful when per interface outputs are inputted (Eg: sh int et1 status, sh int et1 mac-detail)
-            elif (len(mod_ori_command) == 4 or len(mod_ori_command) == 5) and re.search(r'\b(et|po|vx)', mod_ori_command[2]) and not re.search('\s$', ori_command):
-                options = ['mac-detail', 'phy-detail', 'status', 'switchport']
-            elif len(mod_ori_command) == 4 and not re.search('\s$', ori_command):
-                options = [x for x in cmd_first_key_dict[mod_ori_command[0]][mod_ori_command[1]][mod_ori_command[2]] if x.startswith(mod_ori_command[3])]
-            elif len(mod_ori_command) == 5 and mod_ori_command[1] == 'ip' and mod_ori_command[2] == 'route' and mod_ori_command[3] == 'vrf':
-                options = [x for x in self.vrf_routing_table]
-                options.append('all-detail')
-                options.append('all-host')
-                options.append('all-summary')
-            elif len(mod_ori_command) == 5 and not re.search('\s$', ori_command):
-                options = [x for x in cmd_first_key_dict[mod_ori_command[0]][mod_ori_command[1]][mod_ori_command[2]][mod_ori_command[3]] if x.startswith(mod_ori_command[4])]
-            elif len(mod_ori_command) == 6 and not re.search('\s$', ori_command):
-                options = [x for x in cmd_first_key_dict[mod_ori_command[0]][mod_ori_command[1]][mod_ori_command[2]][mod_ori_command[3]][mod_ori_command[4]] if x.startswith(mod_ori_command[5])]
-            elif len(mod_ori_command) == 7 and not re.search('\s$', ori_command):
-                options = [x for x in cmd_first_key_dict[mod_ori_command[0]][mod_ori_command[1]][mod_ori_command[2]][mod_ori_command[3]][mod_ori_command[4]][mod_ori_command[5]] if x.startswith(mod_ori_command[6])]
-            else:
+        else:
+            split_ori_command = re.findall(r'(.+)\s(\w+)?$', ori_command)
+            mod_ori_command = self.autocomplete(split_ori_command[0][0]).split()
+            mod_ori_command.append(split_ori_command[0][1])
+            if mod_ori_command[0] in ['show', 'bash']: # narrow down options based on 'show' or 'bash' command
+                if len(mod_ori_command) == 2 and not re.search(r'\s$', ori_command):
+                    options = [x for x in cmd_first_key_dict[mod_ori_command[0]] if x.startswith(mod_ori_command[1])]
+                elif len(mod_ori_command) == 3 and not re.search(r'\s$', ori_command):
+                    options = [x for x in cmd_first_key_dict[mod_ori_command[0]][mod_ori_command[1]] if x.startswith(mod_ori_command[2])]
+                # next condition useful when per interface outputs are inputted (Eg: sh int et1 status, sh int et1 mac-detail)
+                elif (len(mod_ori_command) == 4 or len(mod_ori_command) == 5) and re.search(r'\b(et|po|vx|ma)', mod_ori_command[2]) and not re.search(r'\s$', ori_command):
+                    options = ['mac-detail', 'phy-detail', 'status', 'switchport']
+                elif len(mod_ori_command) == 4 and not re.search(r'\s$', ori_command):
+                    options = [x for x in cmd_first_key_dict[mod_ori_command[0]][mod_ori_command[1]][mod_ori_command[2]] if x.startswith(mod_ori_command[3])]
+                elif len(mod_ori_command) == 5 and mod_ori_command[1] == 'ip' and mod_ori_command[2] == 'route' and mod_ori_command[3] == 'vrf':
+                    options = [x for x in self.vrf_routing_table]
+                    options.append('all detail')
+                    # options.append('all-detail')
+                    # options.append('all-host')
+                    # options.append('all-summary')
+                elif len(mod_ori_command) == 5 and not re.search(r'\s$', ori_command):
+                    options = [x for x in cmd_first_key_dict[mod_ori_command[0]][mod_ori_command[1]][mod_ori_command[2]][mod_ori_command[3]] if x.startswith(mod_ori_command[4])]
+                elif len(mod_ori_command) == 6 and not re.search(r'\s$', ori_command):
+                    options = [x for x in cmd_first_key_dict[mod_ori_command[0]][mod_ori_command[1]][mod_ori_command[2]][mod_ori_command[3]][mod_ori_command[4]] if x.startswith(mod_ori_command[5])]
+                elif len(mod_ori_command) == 7 and not re.search(r'\s$', ori_command):
+                    options = [x for x in cmd_first_key_dict[mod_ori_command[0]][mod_ori_command[1]][mod_ori_command[2]][mod_ori_command[3]][mod_ori_command[4]][mod_ori_command[5]] if x.startswith(mod_ori_command[6])]
+            else: # no options for other commands
                 options = []
-
-        else: # no options for other commands
-            options = []
         results = [x for x in options if x.startswith(text)] + [None]
         return results[state]
 
-
-
-
+    def autocomplete(self, command):
+        actual_cmd = []
+        cmdlist = command.split(' ')
+        to_search = self.cmd_dictionary
+        for cmd in cmdlist:
+            for keys in to_search:
+                match = re.search(rf'^{cmd}', keys, flags=re.IGNORECASE)
+                if match:
+                    actual_cmd.append(keys)
+                    to_search = to_search[keys]
+                    break
+            else:
+                actual_cmd.append(cmd)
+        # print(f"actual command: {actual_cmd}")
+        return ' '.join(actual_cmd)

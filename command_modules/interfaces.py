@@ -30,12 +30,15 @@ def show_interfaces_status(content):
 #per interface output functions here
 def individual_interface_status(content, command):
     if re.search('show interfaces status$', command):
-        show_interfaces_status(content)
+        return content
     else:
         output = content.splitlines()[2] + '\n'
         try:
             interface = re.findall(r'show interfaces (\w.+) status', command, re.IGNORECASE)
             interface = re.sub(' ', '', interface[0])
+            interface = re.sub('Et(h(e(r(n(e(t?)?)?)?)?)?)?', 'Et', interface, flags=re.IGNORECASE)
+            interface = re.sub('Po(r(t(-(c(h(a(n(n(e(l?)?)?)?)?)?)?)?)?)?)?', 'Po', interface, flags=re.IGNORECASE)
+            interface = re.sub('Ma(n(a(g(e(m(e(n(t?)?)?)?)?)?)?)?)?', 'Ma', interface, flags=re.IGNORECASE)
             if not re.search(r'[0-9]', interface):
                 return('Please enter a valid interface')
             for lines in content.splitlines():
@@ -47,113 +50,137 @@ def individual_interface_status(content, command):
             return('Please enter the interface number')   
 
 def interfaces_switchport(content, command):
-    matched = False
-    try:
-        interface = re.findall(r'show interfaces (\w.+) switchport', command, re.IGNORECASE)
-        interface = re.sub(' ', '', interface[0])
-        if not re.search(r'[0-9]', interface):
-            return('Please enter a valid interface')
-        output = ''
-        for lines in content.splitlines():
-            if matched:
-                if re.search(r'^(Name:.*|\s+)', lines):
-                    return (re.sub(r'\n\n', '\n', output))
-                output += lines + '\n'
-            if not matched:
-                match = re.search(rf'^Name: {interface}\b', lines, re.IGNORECASE)
-                if match:
+    if re.search('show interfaces switchport$', command):
+        return content
+    else:
+        matched = False
+        try:
+            interface = re.findall(r'show interfaces (\w.+) switchport', command, re.IGNORECASE)
+            interface = re.sub(' ', '', interface[0])
+            interface = re.sub('Et(h(e(r(n(e(t?)?)?)?)?)?)?', 'Et', interface, flags=re.IGNORECASE)
+            interface = re.sub('Po(r(t(-(c(h(a(n(n(e(l?)?)?)?)?)?)?)?)?)?)?', 'Po', interface, flags=re.IGNORECASE)
+            if not re.search(r'[0-9]', interface):
+                return('Please enter a valid interface')
+            output = ''
+            for lines in content.splitlines():
+                if matched:
+                    if re.search(r'^(Name:.*|\s+)', lines):
+                        return (re.sub(r'\n\n', '\n', output))
                     output += lines + '\n'
-                    matched = True
-        if output == '':
-            return('Interface does not exists or is not a switchport')
-        else:
-            return (re.sub(r'\n\n', '\n', output))
-    except IndexError as e:
-        return('Please enter the interface number')      
-    
+                if not matched:
+                    match = re.search(rf'^Name: {interface}\b', lines, re.IGNORECASE)
+                    if match:
+                        output += lines + '\n'
+                        matched = True
+            if output == '':
+                return('Interface does not exists or is not a switchport')
+            else:
+                return (re.sub(r'\n\n', '\n', output))
+        except IndexError as e:
+            return('Please enter the interface number')      
+        
 def mac_detail(content, command):
     matched = False
-    try:
-        interface = re.findall(r'show interfaces (\w.+) mac-detail', command)
-        interface = re.sub(' ', '', interface[0])
-        if not re.search(r'[0-9]', interface):
-            return('Please enter a valid interface')
-        output = ''
-        for lines in content.splitlines():
-            if matched:
-                if re.search(r'^(Ethernet*|\s*\n)', lines):
-                    return (re.sub(r'\n\n', '\n', output))
-                output += lines + '\n'
-            if not matched:
-                match = re.search(rf'^{interface}\b', lines, re.IGNORECASE)
-                if match:
+    if re.search('show interfaces mac-detail$', command):
+        return content
+    else:
+        try:
+            interface = re.findall(r'show interfaces (\w.+) mac-detail', command)
+            interface = re.sub(' ', '', interface[0])
+            interface = re.sub('Et(h(e(r(n(e(t?)?)?)?)?)?)?', 'Ethernet', interface, flags=re.IGNORECASE)
+            if not re.search(r'[0-9]', interface):
+                return('Please enter a valid interface')
+            output = ''
+            for lines in content.splitlines():
+                if matched:
+                    if re.search(r'^(Ethernet*|\s*\n)', lines):
+                        return (re.sub(r'\n\n', '\n', output))
                     output += lines + '\n'
-                    matched = True
-        if output == '':
-            return('Interface does not exist')
-        else:
-            return (re.sub(r'\n\n', '\n', output))
-    except IndexError as e:
-        return('Please enter the interface')
+                if not matched:
+                    match = re.search(rf'^{interface}\b', lines, re.IGNORECASE)
+                    if match:
+                        output += lines + '\n'
+                        matched = True
+            if output == '':
+                return('Interface does not exist')
+            else:
+                return (re.sub(r'\n\n', '\n', output))
+        except IndexError as e:
+            return('Please enter the interface')
     
 def phy_detail(content, command):
     matched = False
-    try:
-        interface = re.findall(r'show interfaces (\w.+) phy-detail', command)
-        interface = re.sub(' ', '', interface[0])
-        if not re.search(r'[0-9]', interface):
-            return('Please enter a valid interface')
-        output = ''
-        for lines in content.splitlines():
-            if matched:
-                if re.search(r'^(Ethernet*|\s*\n)', lines):
-                    return (re.sub(r'\n\n', '\n', output))
-                output += lines + '\n'
-            if not matched:
-                match = re.search(rf'^{interface}\b', lines, re.IGNORECASE)
-                if match:
+    if re.search('show interfaces mac-detail$', command):
+        return content
+    else:
+        if re.search('show interfaces phy-detail$', command):
+            return content
+        try:
+            interface = re.findall(r'show interfaces (\w.+) phy-detail', command)
+            interface = re.sub(' ', '', interface[0])
+            interface = re.sub('Et(h(e(r(n(e(t?)?)?)?)?)?)?', 'Ethernet', interface, flags=re.IGNORECASE)
+            if not re.search(r'[0-9]', interface):
+                return('Please enter a valid interface')
+            output = ''
+            for lines in content.splitlines():
+                if matched:
+                    if re.search(r'^(Ethernet*|\s*\n)', lines):
+                        return (re.sub(r'\n\n', '\n', output))
                     output += lines + '\n'
-                    matched = True
-        if output == '':
-            return('Interface does not exist')
-        else: 
-            return (re.sub(r'\n\n', '\n', output))
-    except IndexError as e:
-        return('Please enter the interface')
+                if not matched:
+                    match = re.search(rf'^{interface}\b', lines, re.IGNORECASE)
+                    if match:
+                        output += lines + '\n'
+                        matched = True
+            if output == '':
+                return('Interface does not exist')
+            else: 
+                return (re.sub(r'\n\n', '\n', output))
+        except IndexError as e:
+            return('Please enter the interface')
     
 def handle_individual_interfaces(self, command, match):
     matched = False
-    content = self.command_searcher('show interfaces')
-    try:
-        interface = re.findall(r'show interfaces (\w.+)', command)
-        interface = re.sub(' ', '', interface[0])
-        if not re.search(r'[0-9]', interface):
-            return('Please enter a valid interface')
-        output = ''
-        for lines in content.splitlines():
-            if matched:
-                if re.search(r'^(Ethernet*|Port-Channel*|Vlan*|Vxlan*)', lines):
-                    return (re.sub(r'\n\n', '\n', output))
-                output += lines + '\n'
-            if not matched:
-                match = re.search(rf'^{interface}\b', lines, re.IGNORECASE)
-                if match:
+    content = self.command_searcher('show interfaces.*')
+    if re.search('show interfaces$', command):
+        return content
+    else:
+        try:
+            interface = re.findall(r'show interfaces (\w.+)', command)
+            interface = re.sub(' ', '', interface[0])
+            interface = re.sub('Et(h(e(r(n(e(t?)?)?)?)?)?)?', 'Ethernet', interface, flags=re.IGNORECASE)
+            interface = re.sub('Po(r(t(-(c(h(a(n(n(e(l?)?)?)?)?)?)?)?)?)?)?', 'Port-Channel', interface, flags=re.IGNORECASE)
+            interface = re.sub('vl(a(n?)?)?', 'Vlan', interface, flags=re.IGNORECASE)
+            interface = re.sub('Ma(n(a(g(e(m(e(n(t?)?)?)?)?)?)?)?)?', 'Management', interface, flags=re.IGNORECASE)
+            if not re.search(r'[0-9]', interface):
+                return('Please enter a valid interface')
+            output = ''
+            for lines in content.splitlines():
+                if matched:
+                    if re.search(r'^(Ethernet*|Port-Channel*|Vlan*|Vxlan*)', lines):
+                        return (re.sub(r'\n\n', '\n', output))
                     output += lines + '\n'
-                    matched = True
-        if output == '':
-            return('Interface does not exist')
-        else: 
-            return (re.sub(r'\n\n', '\n', output))
-    except IndexError as e:
-        return('Please enter the interface') 
+                if not matched:
+                    match = re.search(rf'^{interface}\b', lines, re.IGNORECASE)
+                    if match:
+                        output += lines + '\n'
+                        matched = True
+            if output == '':
+                return('Interface does not exist')
+            else: 
+                return (re.sub(r'\n\n', '\n', output))
+        except IndexError as e:
+            return('Please enter the interface') 
     
 def handle_show_interfaces_options(self, command, match):
+    # more info on regex here: https://regex101.com/r/rPk0ov/1
+    # optimized this for better handling
     interface_type = match.group(1)
-    option = match.group(2)
+    option = match.group(5)
     handler_map = {
-        "status": [individual_interface_status, 'show interfaces status'],
-        "switchport": [interfaces_switchport, 'show interfaces switchport'],
-        "mac-detail": [mac_detail, 'show interfaces mac-detail'],
-        "phy-detail": [phy_detail, 'show interfaces phy-detail']
+        "status": [individual_interface_status, 'show interfaces.* status'],
+        "switchport": [interfaces_switchport, 'show interfaces.* switchport'],
+        "mac-detail": [mac_detail, 'show interfaces.* mac detail'],
+        "phy-detail": [phy_detail, 'show interfaces.* phy detail']
     }
     return handler_map[option][0](self.command_searcher(handler_map[option][1]), command)   

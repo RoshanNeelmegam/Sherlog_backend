@@ -2,6 +2,20 @@ import sys
 import os, subprocess
 import readline
 from class_definition.showTechExtendedClass import *
+import random, datetime
+import socket
+
+def client(server_to_connect, port, data):
+    try:
+        client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        client.settimeout(1)
+        client.connect((server_to_connect, port))
+        client.send(data.encode("utf-8"))
+        return True
+    except Exception as e:
+       return False
+    finally:
+       client.close()
 
 # creating a parsed object
 evpntech = showTechExtended(sys.argv[1])
@@ -10,6 +24,10 @@ evpntech.routing_logic()
 # giving the completer function as input to the readline for autocompleting commands
 readline.parse_and_bind ("bind ^I rl_complete") 
 readline.set_completer(evpntech.complete)
+
+identifier = f"{random.randint(1, 9999999)}: {datetime.datetime.now()}"
+data = f'User: {os.getlogin().capitalize()} Identifier: {identifier} evpnmode\n'
+client('10.85.129.100', 2234, data)
 
 # loop for the device console
 while True:

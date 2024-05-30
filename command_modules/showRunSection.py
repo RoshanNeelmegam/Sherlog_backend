@@ -4,7 +4,7 @@ def shrunsec(self, command, match=None):
     section_input = re.split('sec(?:t(?:i(?:on?)?)?)?', command)[-1].strip()
     section_output = ''
     relevant_section = False
-    contents = self.command_searcher('show running-config sanitized')
+    contents = self.command_searcher('show running-config')
     output = ''
     for line in contents.splitlines():
         if not line.startswith(' '):
@@ -21,10 +21,13 @@ def shrunsec(self, command, match=None):
 
 def shrunint(self, command, match=None):
     matched = False
-    contents = self.command_searcher('show running-config sanitized')
+    contents = self.command_searcher('show running-config')
     try:
-        interface = re.findall(r'show running-config sanitized interfaces (\w.+)', command)
+        interface = re.findall(r'show running-config interfaces (\w.+)', command)
         interface = re.sub(' ', '', interface[0])
+        interface =  re.sub('et(h(e(r(n(e(t?)?)?)?)?)?)?', 'Ethernet', interface, flags=re.IGNORECASE)
+        interface =  re.sub('po(r(t(-(c(h(a(n(n(e(l?)?)?)?)?)?)?)?)?)?)?', 'Port-Channel', interface, flags=re.IGNORECASE)
+        interface =  re.sub('vl(a(n?)?)?', 'Vlan', interface, flags=re.IGNORECASE)
         if not re.search(r'[0-9]', interface):
             return('Please enter a valid interface')
         content = ''
